@@ -1,8 +1,5 @@
 import AVKit
 import Cache
-import HLSCachingReverseProxyServer
-import GCDWebServer
-import PINCache
 
 @objc public class CacheManager: NSObject {
 
@@ -28,21 +25,19 @@ import PINCache
       totalCostLimit: 0
     )
     
-    var server: HLSCachingReverseProxyServer?
-
     lazy var storage: Cache.Storage<String,Data>? = {
         return try? Cache.Storage<String,Data>(diskConfig: diskConfig, memoryConfig: memoryConfig, transformer: TransformerFactory.forCodable(ofType: Data.self))
     }()
     
 
-    ///Setups cache server for HLS streams
+    /// Kept so existing callers still compile. Does not start a local HTTP server.
+    ///
+    /// The previous implementation started GCDWebServer on 0.0.0.0:8080 and
+    /// fetched whatever URL was passed as __hls_origin_url. Devices on the
+    /// same network could read files inside the app container and could use
+    /// the phone as a proxy to hosts only the phone can reach. HLS is played
+    /// directly with AVPlayer, so that server is not needed.
     @objc public func setup(){
-        GCDWebServer.setLogLevel(4)
-        let webServer = GCDWebServer()
-        let cache = PINCache.shared
-        let urlSession = URLSession.shared
-        server = HLSCachingReverseProxyServer(webServer: webServer, urlSession: urlSession, cache: cache)
-        server?.start(port: 8080)
     }
     
     @objc public func setMaxCacheSize(_ maxCacheSize: NSNumber?){
@@ -90,9 +85,19 @@ import PINCache
     @objc public func getCachingPlayerItemForNormalPlayback(_ url: URL, cacheKey: String?, videoExtension: String?, headers: Dictionary<NSObject,AnyObject>) -> AVPlayerItem? {
         let mimeTypeResult = getMimeType(url:url, explicitVideoExtension: videoExtension)
         if (mimeTypeResult.1 == "application/vnd.apple.mpegurl"){
-            let reverseProxyURL = server?.reverseProxyURL(from: url)!
-            let playerItem = AVPlayerItem(url: reverseProxyURL!)
-            return playerItem
+            // Play the original URL. Do not rewrite it through a localhost
+            // reverse proxy. The old proxy accepted any __hls_origin_url,
+            // including file:// and addresses on the phone's local network.
+            var httpHeaders = [String: String]()
+            for (key, value) in headers {
+                let convertedKey = key as? String
+                let convertedValue = (value as? String) ?? (value as? NSNumber)?.stringValue
+                if let convertedKey = convertedKey, let convertedValue = convertedValue {
+                    httpHeaders[convertedKey] = convertedValue
+                }
+            }
+            let asset = AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": httpHeaders])
+            return AVPlayerItem(asset: asset)
         } else {
             return getCachingPlayerItem(url, cacheKey: cacheKey, videoExtension: videoExtension, headers: headers)
         }

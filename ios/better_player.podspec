@@ -16,9 +16,10 @@ A new flutter plugin project.
   s.public_header_files = 'Classes/**/*.h'
   s.dependency 'Flutter'
   s.dependency 'Cache', '~> 6.0.0'
-  s.dependency 'GCDWebServer'
-  s.dependency 'HLSCachingReverseProxyServer'
-  s.dependency 'PINCache'
+  # GCDWebServer, HLSCachingReverseProxyServer, and PINCache were removed.
+  # Together they listened on every network interface and fetched arbitrary
+  # URLs (SSRF, including file://). Non-HLS caching still uses the Cache pod.
+  # HLS is played with AVURLAsset and does not need a local proxy.
   
   s.platform = :ios, '11.0'
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'VALID_ARCHS[sdk=iphonesimulator*]' => 'x86_64' }

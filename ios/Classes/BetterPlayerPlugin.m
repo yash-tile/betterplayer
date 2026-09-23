@@ -41,6 +41,8 @@ bool _remoteCommandsInitialized = false;
     _artworkImageDict = [NSMutableDictionary dictionary];
     _dataSourceDict = [NSMutableDictionary dictionary];
     _cacheManager = [[CacheManager alloc] init];
+    // setup is a no-op. It used to start an HTTP server on port 8080 that
+    // other devices on the network could reach. Do not start that server again.
     [_cacheManager setup];
     return self;
 }
